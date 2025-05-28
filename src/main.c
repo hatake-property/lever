@@ -43,6 +43,7 @@ int term_col;
 
 int main(int argc,char**argv){
 	struct file file;
+	int c;
 	switch(argc){
 	case 2:
 		file.path=argv[1];
@@ -70,6 +71,31 @@ int main(int argc,char**argv){
 	default:
 		break;
 	}
+	get_term_size();
+	reset_color();
+	while(1){
+		clear_term();
+		invert_color();
+		for(int i=0;i<term_col;i++){
+			printf(" ");
+		}
+		invert_color();
+		for(int i=0;i<term_row-3;i++){
+			printf("%2d\n",i);
+		}
+		invert_color();
+		for(int i=0;i<term_col;i++){
+			printf(" ");
+		}
+		invert_color();
+		noncanonical();
+		c=getchar();
+		canonical();
+		if(c=='q'){
+			break;
+		}
+	}
+	canonical();
 	return 0;
 }
 

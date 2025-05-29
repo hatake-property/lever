@@ -24,10 +24,29 @@ enum program_lang{
 	PL_TEXT_ENGLISH,
 };
 
+enum token_type{
+	T_WORD,
+	T_NUMBER,
+	T_SYMBOL,
+	T_BLANK,
+	T_NEWLINE,
+	T_NONE,
+};
+
+struct token{
+	char*content;
+	int size;
+	enum token_type type;
+};
+
 struct file{
 	char*path;
 	enum program_lang lang;
+	struct token*token;
+	int size;
 };
+
+void free_file(struct file file);
 
 void canonical(void);
 void clear_term(void);
@@ -43,6 +62,7 @@ int term_col;
 
 int main(int argc,char**argv){
 	struct file file;
+	FILE*fp;
 	int c;
 	switch(argc){
 	case 2:
@@ -71,6 +91,102 @@ int main(int argc,char**argv){
 	default:
 		break;
 	}
+
+	fp=fopen(file.path,"r");
+	file.token=malloc(sizeof(struct token)*0x10000);
+	if(!file.token){
+		free_file(file);
+		fputs("error: no get memory\n",stderr);
+		return -1;
+	}
+	file.size=0x10000;
+	for(int i=0;i<file.size;i++){
+		file.token[i].content=malloc(sizeof(char)*0x8);
+		if(!file.token[i].content){
+			free_file(file);
+			fputs("error: no get memory\n",stderr);
+			return -1;
+		}
+		file.token[i].size=0x8;
+		file.token[i].type=T_NONE;
+	}
+	if(fp){
+		int file_char;
+		int i;
+		int content_indent=0;
+		while{
+			if(i>=file.size-1){
+				file.size+=0x10000;
+				void*p=realloc(file.token,sizeof(struct token)*file.size);
+				if(!p){
+					free_file(file);
+					fputs("error: no get memory\n",stderr);
+					return -1;
+				}
+				for(int i=file.size-0x10000;i<file.size;i++){
+					file.token[i].content=malloc(sizeof(char)*0x8);
+					if(!file.token[i].content){
+						free_file(file);
+						fputs("error: no get memory\n",stderr);
+						return -1;
+					}
+					file.token[i].size=0x8;
+					file.token[i].type=T_NONE;
+				}
+			}
+			if(content_indent>=file.token[i].size-1){
+				file.token[i].size*=2;
+				void*p=realloc(file.token[i].content,sizeof(char)*file.token[i].size);
+				if(!p){
+					free_file(file);
+					fputs("error: no get memory\n",stderr);
+					return -1;
+				}
+			}
+			file_char=fgetc(fp);
+			if(file_char==EOF){
+				file.token[i].content[content_indent]='\0';
+				i++;
+				file.token[i].content[0]='\0';
+				file.token[i].type=T_NONE;
+				break;
+			}else if(file_char=='\n'||file_char=='\r'){
+				if(file.token[i].type!=T_NEWLINE){
+					file.token[i].content[content_indent]='\0';
+					content_indent=0;
+					i++;
+					file.token[i].type=T_NEWLINE;
+				}
+			}else if('0'<=file_char&&file_char<='9'){
+				if(file.token[i].type!=T_NUMBER){
+					file.token[i].content[content_indent]='\0';
+					content_indent=0;
+					i++;
+					file.token[i].type=T_NUMBER;
+				}
+			}else if(('!'<=file_char&&file_char<='~')^(('A'<=file_char&&file_char'Z')||('a'<=file_char&&file_char'z'))){
+				if(file.token[i].type!=T_SYMBOL){
+					file.token[i].content[content_indent]='\0';
+					content_indent=0;
+					i++;
+					file.token[i].type=T_SYMBOL;
+				}
+			}else{
+				if(file.token[i].type!=T_WORD){
+					file.token[i].content[content_indent]='\0';
+					content_indent=0;
+					i++;
+					file.token[i].type=T_WORD;
+				}
+			}
+			file.token[i].content[content_indent]=c;
+			content_indent++;
+		}
+	}else{
+		file.token[0].content[0]='\0';
+		file.token[0].type=T_NONE;
+	}
+
 	get_term_size();
 	reset_color();
 	while(1){
@@ -97,6 +213,14 @@ int main(int argc,char**argv){
 	}
 	canonical();
 	return 0;
+}
+
+void free_file(struct file file){
+	for(int i=0;i<file.size;i++){
+		free(file.token[i].content);
+	}
+	free(file.token);
+	return;
 }
 
 void canonical(void){
